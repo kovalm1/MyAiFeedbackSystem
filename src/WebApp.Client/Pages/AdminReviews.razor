@@ -1,0 +1,436 @@
+@page "/admin/reviews"
+@implements IDisposable
+@inject HttpClient Http
+@inject IClientSessionStateStore StateStore
+@inject ISnackbar Snackbar
+
+<PageTitle>Керування відгуками</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">Керування відгуками</MudText>
+<MudAlert Severity="Severity.Info" Class="mb-4">
+    Локальна панель менеджера. AI-чернетки потребують перевірки перед використанням.
+</MudAlert>
+
+@if (!_ready)
+{
+    <MudText>Відновлення стану панелі…</MudText>
+    <MudProgressLinear Indeterminate="true" Class="mt-2" />
+}
+else
+{
+    @if (_storageError)
+    {
+        <MudAlert Severity="Severity.Warning" Class="mb-4">
+            Сховище вкладки недоступне. Фільтри й чернетка не відновляться після оновлення.
+        </MudAlert>
+    }
+
+    <MudGrid Class="mb-4">
+        <MudItem xs="12" sm="6">
+            <MudTextField T="string" Label="Пошук за автором або текстом" Immediate="true"
+                          @bind-Value="_state.Search" @bind-Value:after="SaveStateAsync" />
+        </MudItem>
+        <MudItem xs="12" sm="3">
+            <MudSelect T="string" Label="Тональність" Value="_state.Sentiment"
+                       ValueChanged="OnSentimentChanged">
+                <MudSelectItem T="string" Value="@string.Empty">Усі</MudSelectItem>
+                <MudSelectItem T="string" Value="@("Positive")">Позитивна</MudSelectItem>
+                <MudSelectItem T="string" Value="@("Neutral")">Нейтральна</MudSelectItem>
+                <MudSelectItem T="string" Value="@("Negative")">Негативна</MudSelectItem>
+                <MudSelectItem T="string" Value="@("Mixed")">Змішана</MudSelectItem>
+                <MudSelectItem T="string" Value="@("Unanalyzed")">Не проаналізовано</MudSelectItem>
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="3">
+            <MudSelect T="string" Label="Пріоритет" Value="_state.Priority"
+                       ValueChanged="OnPriorityChanged">
+                <MudSelectItem T="string" Value="@string.Empty">Усі</MudSelectItem>
+                <MudSelectItem T="string" Value="@("Low")">Низький</MudSelectItem>
+                <MudSelectItem T="string" Value="@("Normal")">Звичайний</MudSelectItem>
+                <MudSelectItem T="string" Value="@("High")">Високий</MudSelectItem>
+                <MudSelectItem T="string" Value="@("Critical")">Критичний</MudSelectItem>
+                <MudSelectItem T="string" Value="@("Unanalyzed")">Не проаналізовано</MudSelectItem>
+            </MudSelect>
+        </MudItem>
+    </MudGrid>
+
+    <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="LoadReviewsAsync"
+               Disabled="_loading" Class="mb-4">Оновити список</MudButton>
+
+    @if (_loadError)
+    {
+        <MudAlert Severity="Severity.Error" Class="mb-4">
+            Не вдалося завантажити відгуки. Перевірте з’єднання й оновіть список.
+        </MudAlert>
+    }
+    else if (!_loading && _reviews.Count == 0)
+    {
+        <MudAlert Severity="Severity.Info" Class="mb-4">Відгуків поки немає.</MudAlert>
+    }
+
+    <MudTable Items="@FilteredReviews" Dense="true" Hover="true" Loading="_loading">
+        <HeaderContent>
+            <MudTh>Дата</MudTh>
+            <MudTh>Автор</MudTh>
+            <MudTh>Відгук</MudTh>
+            <MudTh>Тональність</MudTh>
+            <MudTh>Пріоритет</MudTh>
+            <MudTh>Категорія</MudTh>
+            <MudTh>Терміново</MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Дата">@context.CreatedAtUtc.ToLocalTime().ToString("g")</MudTd>
+            <MudTd DataLabel="Автор">@context.AuthorName</MudTd>
+            <MudTd DataLabel="Відгук">@Excerpt(context.Content)</MudTd>
+            <MudTd DataLabel="Тональність">
+                <MudChip T="string" Size="Size.Small" Color="@SentimentColor(context.Sentiment)">
+                    @SentimentLabel(context.Sentiment)
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="Пріоритет">
+                <MudChip T="string" Size="Size.Small" Color="@PriorityColor(context.Priority)">
+                    @PriorityLabel(context.Priority)
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="Категорія">@(context.Category ?? "—")</MudTd>
+            <MudTd DataLabel="Терміново">@UrgencyLabel(context.NeedUrgentResponse)</MudTd>
+            <MudTd><MudButton Size="Size.Small" OnClick="@(() => SelectReviewAsync(context.Id))">Деталі</MudButton></MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText>За поточними фільтрами відгуків немає.</MudText>
+        </NoRecordsContent>
+    </MudTable>
+
+    @if (SelectedReview is { } selected)
+    {
+        <MudCard Class="mt-6">
+            <MudCardContent>
+                <MudText Typo="Typo.h5" GutterBottom="true">@selected.AuthorName</MudText>
+                <MudText Class="mb-4" Style="white-space: pre-wrap">@selected.Content</MudText>
+                <MudText>Резюме: @(selected.Summary ?? "Аналіз ще не виконано.")</MudText>
+                @if (selected.AnalyzedAtUtc is { } analyzedAt)
+                {
+                    <MudText Typo="Typo.caption">
+                        Аналіз: @selected.AIProviderName / @selected.AIModelName, @analyzedAt.ToLocalTime().ToString("g")
+                    </MudText>
+                }
+
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-4 mr-2"
+                           OnClick="@(() => AnalyzeAsync(selected.Id))" Disabled="@_analyzingIds.Contains(selected.Id)">
+                    @(_analyzingIds.Contains(selected.Id) ? "Аналіз…" : "Аналіз")
+                </MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" Class="mt-4"
+                           OnClick="@(() => GenerateDraftAsync(selected.Id))" Disabled="@_generatingIds.Contains(selected.Id)">
+                    @(_generatingIds.Contains(selected.Id) ? "Генерація…" : "Чернетка відповіді")
+                </MudButton>
+
+                <MudAlert Severity="Severity.Info" Class="mt-4 mb-2">
+                    AI-чернетка. Перевірте й відредагуйте текст перед використанням. Відповідь не надсилається клієнту.
+                </MudAlert>
+                <MudTextField T="string" Label="Редагована чернетка відповіді" Lines="7" Immediate="true"
+                              Disabled="@_generatingIds.Contains(selected.Id)"
+                              @bind-Value="_draft.Text" @bind-Value:after="SaveDraftAsync" />
+            </MudCardContent>
+        </MudCard>
+    }
+}
+
+@code {
+    private readonly CancellationTokenSource _disposeToken = new();
+    private readonly SemaphoreSlim _storageLock = new(1, 1);
+    private List<AdminReviewItem> _reviews = [];
+    private AdminReviewsState _state = new();
+    private AdminReviewDraft _draft = new();
+    private bool _ready;
+    private bool _storageError;
+    private bool _loading;
+    private bool _loadError;
+    private readonly HashSet<Guid> _analyzingIds = [];
+    private readonly HashSet<Guid> _generatingIds = [];
+    private int _stateVersion;
+    private int _draftVersion;
+
+    private AdminReviewItem? SelectedReview =>
+        _reviews.FirstOrDefault(review => review.Id == _state.SelectedReviewId);
+
+    private IEnumerable<AdminReviewItem> FilteredReviews => _reviews.Where(review =>
+        (string.IsNullOrWhiteSpace(_state.Search)
+            || review.AuthorName.Contains(_state.Search, StringComparison.OrdinalIgnoreCase)
+            || review.Content.Contains(_state.Search, StringComparison.OrdinalIgnoreCase))
+        && (string.IsNullOrEmpty(_state.Sentiment)
+            || (_state.Sentiment == "Unanalyzed" ? review.Sentiment is null : review.Sentiment == _state.Sentiment))
+        && (string.IsNullOrEmpty(_state.Priority)
+            || (_state.Priority == "Unanalyzed" ? review.Priority is null : review.Priority == _state.Priority)));
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        try
+        {
+            await StateStore.InitializeAsync(_disposeToken.Token);
+            _state = await StateStore.GetAsync<AdminReviewsState>(SessionStateKeys.AdminReviewsState,
+                _disposeToken.Token) ?? new AdminReviewsState();
+            if (_state.SelectedReviewId is { } id)
+                _draft = await StateStore.GetAsync<AdminReviewDraft>(SessionStateKeys.AdminReviewDraft(id),
+                    _disposeToken.Token) ?? new AdminReviewDraft();
+        }
+        catch (Exception ex) when (ex is JSException or InvalidOperationException or System.Text.Json.JsonException)
+        {
+            _storageError = true;
+        }
+        catch (OperationCanceledException) when (_disposeToken.IsCancellationRequested)
+        {
+            return;
+        }
+
+        _ready = true;
+        await InvokeAsync(StateHasChanged);
+        await LoadReviewsAsync();
+    }
+
+    private async Task LoadReviewsAsync()
+    {
+        if (_loading)
+            return;
+
+        _loading = true;
+        _loadError = false;
+        try
+        {
+            _reviews = await Http.GetFromJsonAsync<List<AdminReviewItem>>("api/admin/reviews",
+                _disposeToken.Token) ?? [];
+            if (_state.SelectedReviewId is not null && SelectedReview is null)
+            {
+                _state.SelectedReviewId = null;
+                _draft = new AdminReviewDraft();
+                await SaveStateAsync();
+            }
+        }
+        catch (OperationCanceledException) when (_disposeToken.IsCancellationRequested)
+        {
+        }
+        catch (TaskCanceledException)
+        {
+            _loadError = true;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException)
+        {
+            _loadError = true;
+        }
+        finally
+        {
+            _loading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task SelectReviewAsync(Guid id)
+    {
+        if (_state.SelectedReviewId == id)
+            return;
+
+        _state.SelectedReviewId = id;
+        _draft = new AdminReviewDraft();
+        var version = ++_draftVersion;
+        await SaveStateAsync();
+        if (!_storageError)
+        {
+            try
+            {
+                var draft = await StateStore.GetAsync<AdminReviewDraft>(SessionStateKeys.AdminReviewDraft(id),
+                    _disposeToken.Token);
+                if (_state.SelectedReviewId == id && version == _draftVersion)
+                    _draft = draft ?? new AdminReviewDraft();
+            }
+            catch (Exception ex) when (ex is JSException or InvalidOperationException or System.Text.Json.JsonException)
+            {
+                _storageError = true;
+            }
+        }
+    }
+
+    private async Task OnSentimentChanged(string value)
+    {
+        _state.Sentiment = value;
+        await SaveStateAsync();
+    }
+
+    private async Task OnPriorityChanged(string value)
+    {
+        _state.Priority = value;
+        await SaveStateAsync();
+    }
+
+    private async Task SaveStateAsync()
+    {
+        if (!_ready || _storageError)
+            return;
+
+        var version = ++_stateVersion;
+        var snapshot = new AdminReviewsState
+        {
+            SelectedReviewId = _state.SelectedReviewId,
+            Search = _state.Search,
+            Sentiment = _state.Sentiment,
+            Priority = _state.Priority
+        };
+        await SaveStorageAsync(SessionStateKeys.AdminReviewsState, snapshot, () => version == _stateVersion);
+    }
+
+    private Task SaveDraftAsync()
+    {
+        if (_state.SelectedReviewId is not { } id || !_ready || _storageError)
+            return Task.CompletedTask;
+
+        var version = ++_draftVersion;
+        return SaveStorageAsync(SessionStateKeys.AdminReviewDraft(id),
+            new AdminReviewDraft { Text = _draft.Text },
+            () => version == _draftVersion && _state.SelectedReviewId == id);
+    }
+
+    private async Task SaveStorageAsync<T>(string key, T value, Func<bool> isCurrent)
+    {
+        try
+        {
+            await _storageLock.WaitAsync(_disposeToken.Token);
+            try
+            {
+                if (isCurrent())
+                    await StateStore.SetAsync(key, value, _disposeToken.Token);
+            }
+            finally
+            {
+                _storageLock.Release();
+            }
+        }
+        catch (Exception ex) when (ex is JSException or InvalidOperationException)
+        {
+            _storageError = true;
+            Snackbar.Add("Не вдалося зберегти стан вкладки.", Severity.Warning);
+        }
+        catch (OperationCanceledException) when (_disposeToken.IsCancellationRequested)
+        {
+        }
+    }
+
+    private async Task AnalyzeAsync(Guid id)
+    {
+        if (!_analyzingIds.Add(id))
+            return;
+
+        try
+        {
+            using var response = await Http.PostAsync($"api/admin/reviews/{id:D}/analyze", null,
+                _disposeToken.Token);
+            if (!response.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Не вдалося виконати аналіз. Поточний відгук і фільтри збережено.", Severity.Error);
+                return;
+            }
+
+            var updated = await response.Content.ReadFromJsonAsync<AdminReviewItem>(_disposeToken.Token);
+            if (updated is not null)
+            {
+                var index = _reviews.FindIndex(review => review.Id == id);
+                if (index >= 0)
+                    _reviews[index] = updated;
+            }
+            Snackbar.Add("Аналіз збережено.", Severity.Success);
+        }
+        catch (OperationCanceledException) when (_disposeToken.IsCancellationRequested)
+        {
+        }
+        catch (TaskCanceledException)
+        {
+            Snackbar.Add("Час очікування аналізу вичерпано. Спробуйте ще раз.", Severity.Error);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException)
+        {
+            Snackbar.Add("З’єднання з сервером недоступне. Спробуйте ще раз.", Severity.Error);
+        }
+        finally
+        {
+            _analyzingIds.Remove(id);
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task GenerateDraftAsync(Guid id)
+    {
+        if (!_generatingIds.Add(id))
+            return;
+
+        try
+        {
+            using var response = await Http.PostAsync($"api/admin/reviews/{id:D}/draft", null,
+                _disposeToken.Token);
+            if (!response.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Не вдалося згенерувати чернетку. Поточний текст збережено.", Severity.Error);
+                return;
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<GeneratedReviewDraft>(_disposeToken.Token);
+            if (result is null)
+                throw new System.Text.Json.JsonException("Empty draft response.");
+
+            if (_state.SelectedReviewId == id)
+            {
+                _draft.Text = result.Text;
+                await SaveDraftAsync();
+            }
+            Snackbar.Add("AI-чернетку створено. Перевірте її перед використанням.", Severity.Success);
+        }
+        catch (OperationCanceledException) when (_disposeToken.IsCancellationRequested)
+        {
+        }
+        catch (TaskCanceledException)
+        {
+            Snackbar.Add("Час очікування чернетки вичерпано. Поточний текст збережено.", Severity.Error);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException)
+        {
+            Snackbar.Add("З’єднання з сервером недоступне. Поточний текст збережено.", Severity.Error);
+        }
+        finally
+        {
+            _generatingIds.Remove(id);
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private static string Excerpt(string text) => text.Length <= 100 ? text : text[..100] + "…";
+    private static string SentimentLabel(string? value) => value switch
+    {
+        "Positive" => "Позитивна", "Neutral" => "Нейтральна", "Negative" => "Негативна",
+        "Mixed" => "Змішана", _ => "Не проаналізовано"
+    };
+    private static Color SentimentColor(string? value) => value switch
+    {
+        "Positive" => Color.Success, "Negative" => Color.Error, "Mixed" => Color.Warning,
+        _ => Color.Default
+    };
+    private static string PriorityLabel(string? value) => value switch
+    {
+        "Low" => "Низький", "Normal" => "Звичайний", "High" => "Високий",
+        "Critical" => "Критичний", _ => "Не проаналізовано"
+    };
+    private static Color PriorityColor(string? value) => value switch
+    {
+        "Low" => Color.Success, "High" => Color.Warning, "Critical" => Color.Error,
+        _ => Color.Default
+    };
+    private static string UrgencyLabel(bool? value) => value switch
+    {
+        true => "Так", false => "Ні", null => "Не визначено"
+    };
+
+    public void Dispose()
+    {
+        _disposeToken.Cancel();
+        _disposeToken.Dispose();
+    }
+}

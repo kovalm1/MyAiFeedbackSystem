@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Net;
 using Microsoft.EntityFrameworkCore;
 using MudBlazor.Services;
 using MyAiFeedbackSystem.Application.Abstractions;
@@ -65,6 +66,20 @@ else
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 app.UseHttpsRedirection();
 
+// Until administrator authentication is added in Step 8, manager routes are local-only.
+app.Use(async (context, next) =>
+{
+    if ((context.Request.Path.StartsWithSegments("/admin")
+            || context.Request.Path.StartsWithSegments("/api/admin"))
+        && (context.Connection.RemoteIpAddress is not { } address || !IPAddress.IsLoopback(address)))
+    {
+        context.Response.StatusCode = StatusCodes.Status403Forbidden;
+        return;
+    }
+
+    await next();
+});
+
 app.UseAntiforgery();
 
 app.MapStaticAssets();
@@ -94,6 +109,7 @@ app.MapPost("/api/reviews", async (CreateReviewRequest? request, ReviewService r
         return Results.BadRequest(new { message = "Перевірте введені дані відгуку." });
     }
 });
+app.MapAdminReviewEndpoints();
 app.MapRazorComponents<App>()
     .AddInteractiveWebAssemblyRenderMode()
     .AddAdditionalAssemblies(typeof(MyAiFeedbackSystem.WebApp.Client._Imports).Assembly);
