@@ -3,10 +3,13 @@
 @inject HttpClient Http
 @inject IClientSessionStateStore StateStore
 @inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@inject MyAiFeedbackSystem.WebApp.Client.Auth.AdminAuthClient Auth
 
 <PageTitle>Керування відгуками</PageTitle>
 
 <MudText Typo="Typo.h4" GutterBottom="true">Керування відгуками</MudText>
+<MudButton OnClick="LogoutAsync" Class="mb-4">Вийти</MudButton>
 <MudAlert Severity="Severity.Info" Class="mb-4">
     Локальна панель менеджера. AI-чернетки потребують перевірки перед використанням.
 </MudAlert>
@@ -146,6 +149,7 @@ else
     private bool _storageError;
     private bool _loading;
     private bool _loadError;
+    private bool _authenticated;
     private readonly HashSet<Guid> _analyzingIds = [];
     private readonly HashSet<Guid> _generatingIds = [];
     private int _stateVersion;
@@ -170,6 +174,13 @@ else
 
         try
         {
+            _authenticated = await Auth.RefreshAsync(_disposeToken.Token);
+            if (!_authenticated)
+            {
+                Navigation.NavigateTo("/login", forceLoad: true);
+                return;
+            }
+
             await StateStore.InitializeAsync(_disposeToken.Token);
             _state = await StateStore.GetAsync<AdminReviewsState>(SessionStateKeys.AdminReviewsState,
                 _disposeToken.Token) ?? new AdminReviewsState();
@@ -185,6 +196,10 @@ else
         {
             return;
         }
+        catch (HttpRequestException)
+        {
+            _loadError = true;
+        }
 
         _ready = true;
         await InvokeAsync(StateHasChanged);
@@ -193,15 +208,21 @@ else
 
     private async Task LoadReviewsAsync()
     {
-        if (_loading)
+        if (_loading || !_authenticated)
             return;
 
         _loading = true;
         _loadError = false;
         try
         {
-            _reviews = await Http.GetFromJsonAsync<List<AdminReviewItem>>("api/admin/reviews",
-                _disposeToken.Token) ?? [];
+            using var response = await Http.GetAsync("api/admin/reviews", _disposeToken.Token);
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                Navigation.NavigateTo("/login", forceLoad: true);
+                return;
+            }
+            response.EnsureSuccessStatusCode();
+            _reviews = await response.Content.ReadFromJsonAsync<List<AdminReviewItem>>(_disposeToken.Token) ?? [];
             if (_state.SelectedReviewId is not null && SelectedReview is null)
             {
                 _state.SelectedReviewId = null;
@@ -323,8 +344,13 @@ else
 
         try
         {
-            using var response = await Http.PostAsync($"api/admin/reviews/{id:D}/analyze", null,
-                _disposeToken.Token);
+            using var request = Auth.CreatePost($"api/admin/reviews/{id:D}/analyze");
+            using var response = await Http.SendAsync(request, _disposeToken.Token);
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                Navigation.NavigateTo("/login", forceLoad: true);
+                return;
+            }
             if (!response.IsSuccessStatusCode)
             {
                 Snackbar.Add("Не вдалося виконати аналіз. Поточний відгук і фільтри збережено.", Severity.Error);
@@ -365,8 +391,13 @@ else
 
         try
         {
-            using var response = await Http.PostAsync($"api/admin/reviews/{id:D}/draft", null,
-                _disposeToken.Token);
+            using var request = Auth.CreatePost($"api/admin/reviews/{id:D}/draft");
+            using var response = await Http.SendAsync(request, _disposeToken.Token);
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                Navigation.NavigateTo("/login", forceLoad: true);
+                return;
+            }
             if (!response.IsSuccessStatusCode)
             {
                 Snackbar.Add("Не вдалося згенерувати чернетку. Поточний текст збережено.", Severity.Error);
@@ -403,6 +434,26 @@ else
     }
 
     private static string Excerpt(string text) => text.Length <= 100 ? text : text[..100] + "…";
+
+    private async Task LogoutAsync()
+    {
+        if (!_authenticated)
+            return;
+
+        try
+        {
+            using var request = Auth.CreatePost("api/auth/logout");
+            using var response = await Http.SendAsync(request, _disposeToken.Token);
+            if (response.IsSuccessStatusCode)
+                Navigation.NavigateTo("/login", forceLoad: true);
+            else
+                Snackbar.Add("Не вдалося вийти. Спробуйте ще раз.", Severity.Error);
+        }
+        catch (HttpRequestException)
+        {
+            Snackbar.Add("Не вдалося вийти. Спробуйте ще раз.", Severity.Error);
+        }
+    }
     private static string SentimentLabel(string? value) => value switch
     {
         "Positive" => "Позитивна", "Neutral" => "Нейтральна", "Negative" => "Негативна",

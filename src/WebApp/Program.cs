@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using System.Net;
 using Microsoft.EntityFrameworkCore;
 using MudBlazor.Services;
 using MyAiFeedbackSystem.Application.Abstractions;
@@ -9,8 +8,11 @@ using MyAiFeedbackSystem.Infrastructure.Data;
 using MyAiFeedbackSystem.WebApp;
 using MyAiFeedbackSystem.WebApp.Components;
 using MyAiFeedbackSystem.WebApp.Client.SessionState;
+using MyAiFeedbackSystem.WebApp.Client.Auth;
 
 var builder = WebApplication.CreateBuilder(args);
+if (AdminPasswordCommand.TryRun(args))
+    return;
 
 builder.Services.AddRazorComponents()
     .AddInteractiveWebAssemblyComponents();
@@ -26,6 +28,8 @@ builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlite(connect
 builder.Services.AddScoped<IReviewRepository, EfReviewRepository>();
 builder.Services.AddScoped<ReviewService>();
 builder.Services.AddScoped<IClientSessionStateStore, BrowserSessionStateStore>();
+builder.Services.AddScoped<AdminAuthClient>();
+AdminAuthentication.Configure(builder);
 
 var aiOptions = builder.Configuration.GetSection(AIOptions.SectionName).Get<AIOptions>() ?? new AIOptions();
 AIConfiguration.Validate(aiOptions);
@@ -66,14 +70,18 @@ else
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 app.UseHttpsRedirection();
 
-// Until administrator authentication is added in Step 8, manager routes are local-only.
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseRateLimiter();
+
+// A direct request for the admin page must be checked before serving the Blazor shell.
 app.Use(async (context, next) =>
 {
-    if ((context.Request.Path.StartsWithSegments("/admin")
-            || context.Request.Path.StartsWithSegments("/api/admin"))
-        && (context.Connection.RemoteIpAddress is not { } address || !IPAddress.IsLoopback(address)))
+    if (context.Request.Path.StartsWithSegments("/admin")
+        && context.Request.Method == HttpMethods.Get
+        && !context.User.HasClaim(System.Security.Claims.ClaimTypes.Role, AdminAuthentication.Policy))
     {
-        context.Response.StatusCode = StatusCodes.Status403Forbidden;
+        context.Response.Redirect("/login");
         return;
     }
 
@@ -110,6 +118,7 @@ app.MapPost("/api/reviews", async (CreateReviewRequest? request, ReviewService r
     }
 });
 app.MapAdminReviewEndpoints();
+app.MapAdminAuthEndpoints();
 app.MapRazorComponents<App>()
     .AddInteractiveWebAssemblyRenderMode()
     .AddAdditionalAssemblies(typeof(MyAiFeedbackSystem.WebApp.Client._Imports).Assembly);

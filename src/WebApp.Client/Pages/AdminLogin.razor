@@ -1,0 +1,98 @@
+@page "/login"
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject MyAiFeedbackSystem.WebApp.Client.Auth.AdminAuthClient Auth
+
+<PageTitle>Вхід адміністратора</PageTitle>
+
+<MudCard Class="mt-6">
+    <MudCardContent>
+        <MudText Typo="Typo.h4" GutterBottom="true">Вхід адміністратора</MudText>
+        @if (_loading)
+        {
+            <MudProgressLinear Indeterminate="true" />
+        }
+        else
+        {
+            <MudTextField T="string" Label="Користувач" @bind-Value="_username" Disabled="_submitting" />
+            <MudTextField T="string" Label="Пароль" @bind-Value="_password"
+                          InputType="InputType.Password" Disabled="_submitting" Class="mt-4" />
+            @if (_error is not null)
+            {
+                <MudAlert Severity="Severity.Error" Class="mt-4">@_error</MudAlert>
+            }
+        }
+    </MudCardContent>
+    @if (!_loading)
+    {
+        <MudCardActions>
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="_submitting"
+                       OnClick="LoginAsync">@(_submitting ? "Вхід…" : "Увійти")</MudButton>
+        </MudCardActions>
+    }
+</MudCard>
+
+@code {
+    private string _username = "admin";
+    private string _password = string.Empty;
+    private string? _error;
+    private bool _loading = true;
+    private bool _submitting;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        try
+        {
+            if (await Auth.RefreshAsync())
+            {
+                Navigation.NavigateTo("/admin/reviews", forceLoad: true);
+                return;
+            }
+        }
+        catch (HttpRequestException)
+        {
+            _error = "Не вдалося зв’язатися з сервером.";
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoginAsync()
+    {
+        if (_submitting)
+            return;
+
+        _submitting = true;
+        _error = null;
+        try
+        {
+            if (Auth.CsrfToken is null)
+                await Auth.RefreshAsync();
+
+            using var request = Auth.CreatePost("api/auth/login");
+            request.Content = JsonContent.Create(new { Username = _username, Password = _password });
+            using var response = await Http.SendAsync(request);
+            _password = string.Empty;
+            if (response.IsSuccessStatusCode)
+                Navigation.NavigateTo("/admin/reviews", forceLoad: true);
+            else
+                _error = response.StatusCode == System.Net.HttpStatusCode.Unauthorized
+                    ? "Неправильне ім’я користувача або пароль."
+                    : "Вхід недоступний. Перевірте налаштування адміністратора.";
+        }
+        catch (HttpRequestException)
+        {
+            _error = "Не вдалося зв’язатися з сервером.";
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+}

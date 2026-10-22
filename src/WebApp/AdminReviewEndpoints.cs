@@ -3,6 +3,7 @@ using MyAiFeedbackSystem.Application.Services;
 using MyAiFeedbackSystem.Core.Entities;
 using MyAiFeedbackSystem.Infrastructure.AI;
 using MyAiFeedbackSystem.WebApp.Client.Pages;
+using Microsoft.AspNetCore.Antiforgery;
 
 namespace MyAiFeedbackSystem.WebApp;
 
@@ -10,7 +11,19 @@ public static class AdminReviewEndpoints
 {
     public static IEndpointRouteBuilder MapAdminReviewEndpoints(this IEndpointRouteBuilder app)
     {
-        var reviews = app.MapGroup("/api/admin/reviews");
+        var reviews = app.MapGroup("/api/admin/reviews")
+            .RequireAuthorization(AdminAuthentication.Policy)
+            .AddEndpointFilter(async (context, next) =>
+            {
+                if (HttpMethods.IsPost(context.HttpContext.Request.Method))
+                {
+                    var antiforgery = context.HttpContext.RequestServices.GetRequiredService<IAntiforgery>();
+                    if (await AdminAuthentication.ValidateCsrfAsync(context.HttpContext, antiforgery) is { } invalid)
+                        return invalid;
+                }
+
+                return await next(context);
+            });
 
         reviews.MapGet("/", async (ReviewService service, CancellationToken ct) =>
         {
