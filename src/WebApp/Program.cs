@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
 using MudBlazor.Services;
 using MyAiFeedbackSystem.Application.Abstractions;
@@ -13,6 +14,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveWebAssemblyComponents();
 builder.Services.AddMudServices();
+builder.Services.AddHttpClient();
+builder.Services.AddScoped(services => services.GetRequiredService<IHttpClientFactory>().CreateClient());
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 if (string.IsNullOrWhiteSpace(connectionString))
@@ -65,6 +68,32 @@ app.UseHttpsRedirection();
 app.UseAntiforgery();
 
 app.MapStaticAssets();
+app.MapPost("/api/reviews", async (CreateReviewRequest? request, ReviewService reviews, CancellationToken ct) =>
+{
+    if (request is null)
+        return Results.BadRequest(new { message = "Заповніть форму відгуку." });
+
+    var validationResults = new List<ValidationResult>();
+    if (!Validator.TryValidateObject(request, new ValidationContext(request), validationResults, validateAllProperties: true))
+    {
+        var errors = validationResults
+            .SelectMany(result => result.MemberNames.DefaultIfEmpty(string.Empty)
+                .Select(member => new { member, message = result.ErrorMessage ?? "Некоректне значення." }))
+            .GroupBy(error => error.member)
+            .ToDictionary(group => group.Key, group => group.Select(error => error.message).ToArray());
+        return Results.ValidationProblem(errors);
+    }
+
+    try
+    {
+        var review = await reviews.CreateAsync(request.AuthorName!, request.AuthorEmail!, request.Content!, ct);
+        return Results.Created($"/api/reviews/{review.Id}", new { review.Id });
+    }
+    catch (ArgumentException)
+    {
+        return Results.BadRequest(new { message = "Перевірте введені дані відгуку." });
+    }
+});
 app.MapRazorComponents<App>()
     .AddInteractiveWebAssemblyRenderMode()
     .AddAdditionalAssemblies(typeof(MyAiFeedbackSystem.WebApp.Client._Imports).Assembly);

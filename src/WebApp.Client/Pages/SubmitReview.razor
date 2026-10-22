@@ -1,0 +1,199 @@
+@page "/submit-review"
+@implements IDisposable
+@inject IClientSessionStateStore StateStore
+@inject HttpClient Http
+@inject ISnackbar Snackbar
+
+<PageTitle>Залишити відгук</PageTitle>
+
+<MudCard Class="mt-6">
+    <MudCardContent>
+        <MudText Typo="Typo.h4" GutterBottom="true">Залишити відгук</MudText>
+
+        @if (!_ready)
+        {
+            <MudText>Відновлення чернетки…</MudText>
+            <MudProgressLinear Indeterminate="true" Class="mt-2" />
+        }
+        else
+        {
+            @if (_storageError)
+            {
+                <MudAlert Severity="Severity.Warning" Class="mb-4">
+                    Сховище вкладки недоступне. Чернетка не збережеться після оновлення сторінки.
+                </MudAlert>
+            }
+
+            <MudForm @ref="_form" Model="@_draft">
+                <MudTextField T="string" Label="Ім’я" For="@(() => _draft.AuthorName)"
+                              @bind-Value="_draft.AuthorName" @bind-Value:after="SaveDraftAsync"
+                              Required="true" MaxLength="200" Immediate="true" Disabled="_submitting" />
+                <MudTextField T="string" Label="Email" For="@(() => _draft.AuthorEmail)"
+                              @bind-Value="_draft.AuthorEmail" @bind-Value:after="SaveDraftAsync"
+                              Required="true" MaxLength="320" InputType="InputType.Email"
+                              Immediate="true" Disabled="_submitting" Class="mt-4" />
+                <MudTextField T="string" Label="Відгук" For="@(() => _draft.Content)"
+                              @bind-Value="_draft.Content" @bind-Value:after="SaveDraftAsync"
+                              Required="true" Lines="6" Immediate="true" Disabled="_submitting" Class="mt-4" />
+            </MudForm>
+        }
+    </MudCardContent>
+    @if (_ready)
+    {
+        <MudCardActions>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SubmitAsync"
+                       Disabled="_submitting">
+                @(_submitting ? "Надсилання…" : "Надіслати відгук")
+            </MudButton>
+        </MudCardActions>
+    }
+</MudCard>
+
+@code {
+    private readonly SemaphoreSlim _storageLock = new(1, 1);
+    private readonly CancellationTokenSource _disposeToken = new();
+    private SubmitReviewDraft _draft = new();
+    private MudForm? _form;
+    private bool _ready;
+    private bool _storageError;
+    private bool _submitting;
+    private int _draftVersion;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        try
+        {
+            await StateStore.InitializeAsync(_disposeToken.Token);
+            _draft = await StateStore.GetAsync<SubmitReviewDraft>(SessionStateKeys.SubmitReviewDraft,
+                _disposeToken.Token) ?? new SubmitReviewDraft();
+        }
+        catch (Exception ex) when (ex is JSException or InvalidOperationException or System.Text.Json.JsonException)
+        {
+            _storageError = true;
+        }
+
+        _ready = true;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SaveDraftAsync()
+    {
+        if (!_ready || _submitting || _storageError)
+            return;
+
+        var version = ++_draftVersion;
+        var snapshot = new SubmitReviewDraft
+        {
+            AuthorName = _draft.AuthorName,
+            AuthorEmail = _draft.AuthorEmail,
+            Content = _draft.Content
+        };
+
+        try
+        {
+            await _storageLock.WaitAsync(_disposeToken.Token);
+            try
+            {
+                if (version == _draftVersion && !_submitting)
+                    await StateStore.SetAsync(SessionStateKeys.SubmitReviewDraft, snapshot, _disposeToken.Token);
+            }
+            finally
+            {
+                _storageLock.Release();
+            }
+        }
+        catch (Exception ex) when (ex is JSException or InvalidOperationException)
+        {
+            _storageError = true;
+            Snackbar.Add("Не вдалося зберегти чернетку у вкладці.", Severity.Warning);
+        }
+        catch (OperationCanceledException) when (_disposeToken.IsCancellationRequested)
+        {
+        }
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (_submitting || _form is null)
+            return;
+
+        await _form.ValidateAsync();
+        if (!_form.IsValid)
+            return;
+
+        _submitting = true;
+        try
+        {
+            if (!_storageError)
+            {
+                await _storageLock.WaitAsync(_disposeToken.Token);
+                try
+                {
+                    await StateStore.SetAsync(SessionStateKeys.SubmitReviewDraft, _draft, _disposeToken.Token);
+                }
+                catch (Exception ex) when (ex is JSException or InvalidOperationException)
+                {
+                    _storageError = true;
+                    Snackbar.Add("Не вдалося зберегти чернетку у вкладці.", Severity.Warning);
+                }
+                finally
+                {
+                    _storageLock.Release();
+                }
+            }
+
+            using var response = await Http.PostAsJsonAsync("api/reviews", _draft, _disposeToken.Token);
+            if (!response.IsSuccessStatusCode)
+            {
+                Snackbar.Add(response.StatusCode == System.Net.HttpStatusCode.BadRequest
+                    ? "Перевірте поля форми та спробуйте ще раз."
+                    : "Не вдалося надіслати відгук. Спробуйте пізніше.", Severity.Error);
+                return;
+            }
+
+            ++_draftVersion;
+            var storageCleared = false;
+            if (!_storageError)
+            {
+                await _storageLock.WaitAsync(_disposeToken.Token);
+                try
+                {
+                    await StateStore.RemoveAsync(SessionStateKeys.SubmitReviewDraft, _disposeToken.Token);
+                    storageCleared = true;
+                }
+                catch (Exception ex) when (ex is JSException or InvalidOperationException)
+                {
+                    _storageError = true;
+                }
+                finally
+                {
+                    _storageLock.Release();
+                }
+            }
+
+            _draft = new SubmitReviewDraft();
+            await _form.ResetAsync();
+            Snackbar.Add(storageCleared ? "Дякуємо! Відгук збережено."
+                : "Відгук збережено, але не вдалося очистити чернетку у вкладці.",
+                storageCleared ? Severity.Success : Severity.Warning);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            Snackbar.Add("З’єднання недоступне. Дані форми залишилися на сторінці.", Severity.Error);
+        }
+        finally
+        {
+            _submitting = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    public void Dispose()
+    {
+        _disposeToken.Cancel();
+        _disposeToken.Dispose();
+    }
+}
