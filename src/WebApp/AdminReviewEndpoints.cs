@@ -32,7 +32,7 @@ public static class AdminReviewEndpoints
         });
 
         reviews.MapPost("/{id:guid}/analyze", async (Guid id, ReviewService service,
-            IAIReviewAnalyzer analyzer, ILoggerFactory loggerFactory, CancellationToken ct) =>
+            IAIReviewAnalyzer analyzer, AIOptions aiOptions, ILoggerFactory loggerFactory, CancellationToken ct) =>
         {
             var review = await service.GetByIdAsync(id, ct);
             if (review is null)
@@ -47,8 +47,9 @@ public static class AdminReviewEndpoints
             }
             catch (AIProviderException ex)
             {
-                loggerFactory.CreateLogger("AdminReviewEndpoints").LogWarning(ex,
-                    "AI analysis failed for review {ReviewId}", id);
+                loggerFactory.CreateLogger("AdminReviewEndpoints").LogWarning(
+                    "AI analysis failed for review {ReviewId} using {Provider}/{Model}; error type {ErrorType}",
+                    id, aiOptions.Provider, aiOptions.Model, ex.GetType().Name);
                 return Results.Problem("AI-аналіз зараз недоступний. Спробуйте пізніше.", statusCode: 502);
             }
             catch (KeyNotFoundException)
@@ -58,7 +59,7 @@ public static class AdminReviewEndpoints
         });
 
         reviews.MapPost("/{id:guid}/draft", async (Guid id, ReviewService service,
-            IAIResponseGenerator generator, ILoggerFactory loggerFactory, CancellationToken ct) =>
+            IAIResponseGenerator generator, AIOptions aiOptions, ILoggerFactory loggerFactory, CancellationToken ct) =>
         {
             var review = await service.GetByIdAsync(id, ct);
             if (review is null)
@@ -71,8 +72,9 @@ public static class AdminReviewEndpoints
             }
             catch (AIProviderException ex)
             {
-                loggerFactory.CreateLogger("AdminReviewEndpoints").LogWarning(ex,
-                    "AI draft generation failed for review {ReviewId}", id);
+                loggerFactory.CreateLogger("AdminReviewEndpoints").LogWarning(
+                    "AI draft generation failed for review {ReviewId} using {Provider}/{Model}; error type {ErrorType}",
+                    id, aiOptions.Provider, aiOptions.Model, ex.GetType().Name);
                 return Results.Problem("Не вдалося згенерувати чернетку. Спробуйте пізніше.", statusCode: 502);
             }
         });

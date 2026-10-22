@@ -4,6 +4,12 @@
 *.db
 *.db-shm
 *.db-wal
+*.db-journal
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
+*.sqlite-journal
+**/TestResults/
+**/secrets.json
+.env
+.env.*

@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using MudBlazor.Services;
 using MyAiFeedbackSystem.Application.Abstractions;
@@ -57,9 +58,18 @@ using (var startupScope = app.Services.CreateScope())
     _ = startupScope.ServiceProvider.GetRequiredService<IAIResponseGenerator>();
 }
 
+app.UseExceptionHandler(errorApp => errorApp.Run(async context =>
+{
+    var failure = context.Features.Get<IExceptionHandlerFeature>()?.Error;
+    app.Logger.LogError("Unhandled request failure at {Path}; error type {ErrorType}; trace {TraceId}",
+        context.Request.Path.Value, failure?.GetType().Name, context.TraceIdentifier);
+    context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+    await Results.Problem("Неочікувана помилка сервера. Спробуйте пізніше.",
+        statusCode: StatusCodes.Status500InternalServerError).ExecuteAsync(context);
+}));
+
 if (!app.Environment.IsDevelopment())
 {
-    app.UseExceptionHandler("/Error", createScopeForErrors: true);
     // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }

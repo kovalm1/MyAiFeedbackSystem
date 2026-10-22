@@ -15,4 +15,7 @@
   <Folder Name="/src/WebApp/">
     <Project Path="src/WebApp/MyAiFeedbackSystem.WebApp.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MyAiFeedbackSystem.Tests/MyAiFeedbackSystem.Tests.csproj" />
+  </Folder>
 </Solution>
