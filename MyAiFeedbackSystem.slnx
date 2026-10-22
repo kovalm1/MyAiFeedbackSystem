@@ -1,6 +1,12 @@
 <Solution>
   <Folder Name="/src/" />
+  <Folder Name="/src/Application/">
+    <Project Path="src/Application/MyAiFeedbackSystem.Application.csproj" />
+  </Folder>
   <Folder Name="/src/Core/">
     <Project Path="src/Core/MyAiFeedbackSystem.Core.csproj" />
+  </Folder>
+  <Folder Name="/src/Infrastructure/">
+    <Project Path="src/Infrastructure/MyAiFeedbackSystem.Infrastructure.csproj" />
   </Folder>
 </Solution>
