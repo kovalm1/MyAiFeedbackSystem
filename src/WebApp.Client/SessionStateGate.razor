@@ -1,0 +1,43 @@
+@inject IClientSessionStateStore StateStore
+
+@if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error">@_error</MudAlert>
+}
+else if (!StateStore.IsReady)
+{
+    <MudText Typo="Typo.body2">@LoadingText</MudText>
+    <MudProgressLinear Indeterminate="true" Class="mt-2" />
+}
+else
+{
+    @ChildContent
+}
+
+@code {
+    [Parameter, EditorRequired] public RenderFragment ChildContent { get; set; } = default!;
+    [Parameter] public string LoadingText { get; set; } = "Відновлення чернетки…";
+
+    private string? _error;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        try
+        {
+            await StateStore.InitializeAsync();
+        }
+        catch (JSException)
+        {
+            _error = "Не вдалося відкрити сховище цієї вкладки браузера.";
+        }
+        catch (InvalidOperationException)
+        {
+            _error = "Сховище цієї вкладки браузера недоступне.";
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+}

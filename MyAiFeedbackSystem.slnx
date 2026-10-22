@@ -9,4 +9,10 @@
   <Folder Name="/src/Infrastructure/">
     <Project Path="src/Infrastructure/MyAiFeedbackSystem.Infrastructure.csproj" />
   </Folder>
+  <Folder Name="/src/WebApp.Client/">
+    <Project Path="src/WebApp.Client/MyAiFeedbackSystem.WebApp.Client.csproj" />
+  </Folder>
+  <Folder Name="/src/WebApp/">
+    <Project Path="src/WebApp/MyAiFeedbackSystem.WebApp.csproj" />
+  </Folder>
 </Solution>
