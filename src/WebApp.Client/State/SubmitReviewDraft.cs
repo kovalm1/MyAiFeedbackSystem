@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace MyAiFeedbackSystem.WebApp.Client.Models;
+namespace MyAiFeedbackSystem.WebApp.Client.State;
 
 public sealed class SubmitReviewDraft
 {

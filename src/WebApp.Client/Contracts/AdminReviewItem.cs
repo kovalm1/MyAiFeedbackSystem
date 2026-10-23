@@ -1,4 +1,4 @@
-namespace MyAiFeedbackSystem.WebApp.Client.Models;
+namespace MyAiFeedbackSystem.WebApp.Client.Contracts;
 
 public sealed record AdminReviewItem(
     Guid Id,
@@ -13,5 +13,3 @@ public sealed record AdminReviewItem(
     string? AIProviderName,
     string? AIModelName,
     DateTimeOffset? AnalyzedAtUtc);
-
-public sealed record GeneratedReviewDraft(string Text);

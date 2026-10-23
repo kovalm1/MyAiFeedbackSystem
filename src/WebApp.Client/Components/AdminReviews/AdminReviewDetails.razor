@@ -1,0 +1,41 @@
+<MudCard Class="mt-6">
+    <MudCardContent>
+        <MudText Typo="Typo.h5" GutterBottom="true">@Review.AuthorName</MudText>
+        <MudText Class="mb-4" Style="white-space: pre-wrap">@Review.Content</MudText>
+        <MudText>Резюме: @(Review.Summary ?? "Аналіз ще не виконано.")</MudText>
+        @if (Review.AnalyzedAtUtc is { } analyzedAt)
+        {
+            <MudText Typo="Typo.caption">
+                Аналіз: @Review.AIProviderName / @Review.AIModelName, @analyzedAt.ToLocalTime().ToString("g")
+            </MudText>
+        }
+
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-4 mr-2"
+                   OnClick="@(() => Analyze.InvokeAsync(Review.Id))" Disabled="@IsAnalyzing">
+            @(IsAnalyzing ? "Аналіз…" : "Аналіз")
+        </MudButton>
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Class="mt-4"
+                   OnClick="@(() => GenerateDraft.InvokeAsync(Review.Id))" Disabled="@IsGenerating">
+            @(IsGenerating ? "Генерація…" : "Чернетка відповіді")
+        </MudButton>
+
+        <MudAlert Severity="Severity.Info" Class="mt-4 mb-2">
+            AI-чернетка. Перевірте й відредагуйте текст перед використанням. Відповідь не надсилається клієнту.
+        </MudAlert>
+        <MudTextField T="string" Label="Редагована чернетка відповіді" Lines="7" Immediate="true"
+                      Disabled="@IsGenerating"
+                      @bind-Value="Draft.Text" @bind-Value:after="NotifyDraftChangedAsync" />
+    </MudCardContent>
+</MudCard>
+
+@code {
+    [Parameter, EditorRequired] public AdminReviewItem Review { get; set; } = default!;
+    [Parameter, EditorRequired] public AdminReviewDraft Draft { get; set; } = default!;
+    [Parameter] public bool IsAnalyzing { get; set; }
+    [Parameter] public bool IsGenerating { get; set; }
+    [Parameter] public EventCallback<Guid> Analyze { get; set; }
+    [Parameter] public EventCallback<Guid> GenerateDraft { get; set; }
+    [Parameter] public EventCallback DraftChanged { get; set; }
+
+    private Task NotifyDraftChangedAsync() => DraftChanged.InvokeAsync();
+}

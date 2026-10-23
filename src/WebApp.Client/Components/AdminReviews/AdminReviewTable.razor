@@ -1,0 +1,70 @@
+<MudTable Items="@Items" Dense="true" Hover="true" Loading="@Loading">
+    <HeaderContent>
+        <MudTh>Дата</MudTh>
+        <MudTh>Автор</MudTh>
+        <MudTh>Відгук</MudTh>
+        <MudTh>Тональність</MudTh>
+        <MudTh>Пріоритет</MudTh>
+        <MudTh>Категорія</MudTh>
+        <MudTh>Терміново</MudTh>
+        <MudTh></MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Дата">@context.CreatedAtUtc.ToLocalTime().ToString("g")</MudTd>
+        <MudTd DataLabel="Автор">@context.AuthorName</MudTd>
+        <MudTd DataLabel="Відгук">@Excerpt(context.Content)</MudTd>
+        <MudTd DataLabel="Тональність">
+            <MudChip T="string" Size="Size.Small" Color="@SentimentColor(context.Sentiment)">
+                @SentimentLabel(context.Sentiment)
+            </MudChip>
+        </MudTd>
+        <MudTd DataLabel="Пріоритет">
+            <MudChip T="string" Size="Size.Small" Color="@PriorityColor(context.Priority)">
+                @PriorityLabel(context.Priority)
+            </MudChip>
+        </MudTd>
+        <MudTd DataLabel="Категорія">@(context.Category ?? "—")</MudTd>
+        <MudTd DataLabel="Терміново">@UrgencyLabel(context.NeedUrgentResponse)</MudTd>
+        <MudTd><MudButton Size="Size.Small" OnClick="@(() => ReviewSelected.InvokeAsync(context.Id))">Деталі</MudButton></MudTd>
+    </RowTemplate>
+    <NoRecordsContent>
+        <MudText>За поточними фільтрами відгуків немає.</MudText>
+    </NoRecordsContent>
+</MudTable>
+
+@code {
+    [Parameter, EditorRequired] public IEnumerable<AdminReviewItem> Items { get; set; } = [];
+    [Parameter] public bool Loading { get; set; }
+    [Parameter] public EventCallback<Guid> ReviewSelected { get; set; }
+
+    private static string Excerpt(string text) => text.Length <= 100 ? text : text[..100] + "…";
+
+    private static string SentimentLabel(string? value) => value switch
+    {
+        "Positive" => "Позитивна", "Neutral" => "Нейтральна", "Negative" => "Негативна",
+        "Mixed" => "Змішана", _ => "Не проаналізовано"
+    };
+
+    private static Color SentimentColor(string? value) => value switch
+    {
+        "Positive" => Color.Success, "Negative" => Color.Error, "Mixed" => Color.Warning,
+        _ => Color.Default
+    };
+
+    private static string PriorityLabel(string? value) => value switch
+    {
+        "Low" => "Низький", "Normal" => "Звичайний", "High" => "Високий",
+        "Critical" => "Критичний", _ => "Не проаналізовано"
+    };
+
+    private static Color PriorityColor(string? value) => value switch
+    {
+        "Low" => Color.Success, "High" => Color.Warning, "Critical" => Color.Error,
+        _ => Color.Default
+    };
+
+    private static string UrgencyLabel(bool? value) => value switch
+    {
+        true => "Так", false => "Ні", null => "Не визначено"
+    };
+}

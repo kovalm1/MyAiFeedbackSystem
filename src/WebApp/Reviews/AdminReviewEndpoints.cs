@@ -3,7 +3,7 @@ using MyAiFeedbackSystem.Application.Services;
 using MyAiFeedbackSystem.Core.Entities;
 using MyAiFeedbackSystem.Infrastructure.AI;
 using MyAiFeedbackSystem.WebApp.Auth;
-using MyAiFeedbackSystem.WebApp.Client.Models;
+using MyAiFeedbackSystem.WebApp.Client.Contracts;
 using Microsoft.AspNetCore.Antiforgery;
 
 namespace MyAiFeedbackSystem.WebApp.Reviews;

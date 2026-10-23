@@ -1,0 +1,39 @@
+<MudGrid Class="mb-4">
+    <MudItem xs="12" sm="6">
+        <MudTextField T="string" Label="Пошук за автором або текстом" Immediate="true"
+                      @bind-Value="State.Search" @bind-Value:after="NotifySearchChangedAsync" />
+    </MudItem>
+    <MudItem xs="12" sm="3">
+        <MudSelect T="string" Label="Тональність" Value="State.Sentiment"
+                   ValueChanged="OnSentimentChangedAsync">
+            <MudSelectItem T="string" Value="@string.Empty">Усі</MudSelectItem>
+            <MudSelectItem T="string" Value="@("Positive")">Позитивна</MudSelectItem>
+            <MudSelectItem T="string" Value="@("Neutral")">Нейтральна</MudSelectItem>
+            <MudSelectItem T="string" Value="@("Negative")">Негативна</MudSelectItem>
+            <MudSelectItem T="string" Value="@("Mixed")">Змішана</MudSelectItem>
+            <MudSelectItem T="string" Value="@("Unanalyzed")">Не проаналізовано</MudSelectItem>
+        </MudSelect>
+    </MudItem>
+    <MudItem xs="12" sm="3">
+        <MudSelect T="string" Label="Пріоритет" Value="State.Priority"
+                   ValueChanged="OnPriorityChangedAsync">
+            <MudSelectItem T="string" Value="@string.Empty">Усі</MudSelectItem>
+            <MudSelectItem T="string" Value="@("Low")">Низький</MudSelectItem>
+            <MudSelectItem T="string" Value="@("Normal")">Звичайний</MudSelectItem>
+            <MudSelectItem T="string" Value="@("High")">Високий</MudSelectItem>
+            <MudSelectItem T="string" Value="@("Critical")">Критичний</MudSelectItem>
+            <MudSelectItem T="string" Value="@("Unanalyzed")">Не проаналізовано</MudSelectItem>
+        </MudSelect>
+    </MudItem>
+</MudGrid>
+
+@code {
+    [Parameter, EditorRequired] public AdminReviewsState State { get; set; } = default!;
+    [Parameter] public EventCallback SearchChanged { get; set; }
+    [Parameter] public EventCallback<string> SentimentChanged { get; set; }
+    [Parameter] public EventCallback<string> PriorityChanged { get; set; }
+
+    private Task NotifySearchChangedAsync() => SearchChanged.InvokeAsync();
+    private Task OnSentimentChangedAsync(string value) => SentimentChanged.InvokeAsync(value);
+    private Task OnPriorityChangedAsync(string value) => PriorityChanged.InvokeAsync(value);
+}
