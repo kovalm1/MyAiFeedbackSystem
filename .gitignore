@@ -11,5 +11,6 @@
 *.sqlite-journal
 **/TestResults/
 **/secrets.json
+**/admin.local.json
 .env
 .env.*

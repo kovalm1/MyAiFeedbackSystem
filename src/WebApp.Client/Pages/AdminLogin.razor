@@ -82,9 +82,14 @@
             if (response.IsSuccessStatusCode)
                 Navigation.NavigateTo("/admin/reviews", forceLoad: true);
             else
-                _error = response.StatusCode == System.Net.HttpStatusCode.Unauthorized
-                    ? "Неправильне ім’я користувача або пароль."
-                    : "Вхід недоступний. Перевірте налаштування адміністратора.";
+                _error = response.StatusCode switch
+                {
+                    System.Net.HttpStatusCode.Unauthorized => "Неправильне ім’я користувача або пароль.",
+                    System.Net.HttpStatusCode.ServiceUnavailable =>
+                        "Пароль адміністратора не завантажено. Перевірте User Secrets або admin.local.json і перезапустіть WebApp.",
+                    System.Net.HttpStatusCode.TooManyRequests => "Забагато спроб входу. Зачекайте хвилину й повторіть.",
+                    _ => "Вхід недоступний. Спробуйте ще раз."
+                };
         }
         catch (HttpRequestException)
         {

@@ -28,6 +28,8 @@ dotnet user-secrets set Admin:PasswordHash "<виведений хеш>" --proje
 
 Після запуску ввійдіть як `admin` на `/login`. Хеш можна передати через `Admin__PasswordHash` у середовищі розгортання. Пароль і хеш не комітьте. Докладніше: [ADMIN_SETUP.md](src/WebApp/ADMIN_SETUP.md).
 
+Якщо Visual Studio не бачить User Secrets, у режимі Development WebApp може прочитати `Admin:PasswordHash` із локального `src/WebApp/admin.local.json`. Цей файл виключено з Git і публікації; використовуйте його лише для локального запуску.
+
 ## AI-провайдери
 
 `AI:Provider=Stub` задано в `src/WebApp/appsettings.json`. Для локальних моделей змініть налаштування через User Secrets або змінні середовища, наприклад `AI__Provider`, `AI__BaseUrl`, `AI__Model`, `AI__ResponseFormatMode`.

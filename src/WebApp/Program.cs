@@ -15,6 +15,24 @@ var builder = WebApplication.CreateBuilder(args);
 if (AdminPasswordCommand.TryRun(args))
     return;
 
+// A local, untracked file lets IDE launches use the same development admin
+// credential when their User Secrets store is unavailable.
+if (builder.Environment.IsDevelopment()
+    && string.IsNullOrWhiteSpace(builder.Configuration["Admin:PasswordHash"]))
+{
+    var localHash = new ConfigurationBuilder()
+        .AddJsonFile(Path.Combine(builder.Environment.ContentRootPath, "admin.local.json"), optional: true)
+        .Build()["Admin:PasswordHash"];
+
+    if (!string.IsNullOrWhiteSpace(localHash))
+    {
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Admin:PasswordHash"] = localHash
+        });
+    }
+}
+
 builder.Services.AddRazorComponents()
     .AddInteractiveWebAssemblyComponents();
 builder.Services.AddMudServices();
@@ -50,6 +68,8 @@ else
 }
 
 var app = builder.Build();
+if (string.IsNullOrWhiteSpace(app.Configuration["Admin:PasswordHash"]))
+    app.Logger.LogWarning("Administrator password hash is not configured; login will be unavailable.");
 
 using (var startupScope = app.Services.CreateScope())
 {
