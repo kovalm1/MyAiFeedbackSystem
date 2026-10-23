@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Identity;
 using System.Threading.RateLimiting;
 
-namespace MyAiFeedbackSystem.WebApp;
+namespace MyAiFeedbackSystem.WebApp.Auth;
 
 public static class AdminAuthentication
 {

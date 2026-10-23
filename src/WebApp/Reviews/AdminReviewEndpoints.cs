@@ -2,10 +2,11 @@ using MyAiFeedbackSystem.Application.Abstractions;
 using MyAiFeedbackSystem.Application.Services;
 using MyAiFeedbackSystem.Core.Entities;
 using MyAiFeedbackSystem.Infrastructure.AI;
-using MyAiFeedbackSystem.WebApp.Client.Pages;
+using MyAiFeedbackSystem.WebApp.Auth;
+using MyAiFeedbackSystem.WebApp.Client.Models;
 using Microsoft.AspNetCore.Antiforgery;
 
-namespace MyAiFeedbackSystem.WebApp;
+namespace MyAiFeedbackSystem.WebApp.Reviews;
 
 public static class AdminReviewEndpoints
 {

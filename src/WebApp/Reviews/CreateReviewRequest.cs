@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using MyAiFeedbackSystem.Core.Entities;
 
-namespace MyAiFeedbackSystem.WebApp;
+namespace MyAiFeedbackSystem.WebApp.Reviews;
 
 public sealed class CreateReviewRequest
 {

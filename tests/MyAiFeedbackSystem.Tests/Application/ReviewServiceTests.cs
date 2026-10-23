@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using MyAiFeedbackSystem.Application.Services;
 using MyAiFeedbackSystem.Infrastructure.AI;
 using MyAiFeedbackSystem.Infrastructure.Data;
-using MyAiFeedbackSystem.WebApp;
+using MyAiFeedbackSystem.WebApp.Reviews;
 
 namespace MyAiFeedbackSystem.Tests;
 

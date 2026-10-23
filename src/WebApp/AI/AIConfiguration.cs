@@ -1,7 +1,7 @@
 using MyAiFeedbackSystem.Infrastructure.AI;
 using MyAiFeedbackSystem.Core.Entities;
 
-namespace MyAiFeedbackSystem.WebApp;
+namespace MyAiFeedbackSystem.WebApp.AI;
 
 internal static class AIConfiguration
 {

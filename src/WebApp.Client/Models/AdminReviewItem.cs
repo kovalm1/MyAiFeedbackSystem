@@ -1,4 +1,4 @@
-namespace MyAiFeedbackSystem.WebApp.Client.Pages;
+namespace MyAiFeedbackSystem.WebApp.Client.Models;
 
 public sealed record AdminReviewItem(
     Guid Id,

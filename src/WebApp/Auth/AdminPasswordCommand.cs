@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 
-namespace MyAiFeedbackSystem.WebApp;
+namespace MyAiFeedbackSystem.WebApp.Auth;
 
 public static class AdminPasswordCommand
 {
